@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>西部决斗：午时已到 (完整版)</title>
+    <style>
+        :root {
+            --bg-wood: #5d4037;
+            --bg-wood-light: #8d6e63;
+            --bar-color: #d32f2f;
+            --energy-color: #fbc02d;
+            --ammo-color: #ffd700;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: crosshair;
+        }
+
+        /* 游戏容器 */
+        #game-stage {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            transition: filter 0.3s;
+            transform-origin: center center;
+        }
+
+        /* 背景 */
+        .saloon-bg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                90deg,
+                var(--bg-wood),
+                var(--bg-wood) 20px,
+                var(--bg-wood-light) 20px,
+                var(--bg-wood-light) 22px
+            );
+            z-index: 0;
+        }
+        
+        .saloon-door {
+            position: absolute;
+            bottom: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 300px;
+            background: #3e2723;
+            border: 5px solid #251510;
+            box-shadow: inset 0 0 20px #000;
+            z-index: 0;
+        }
+
+        /* 弹孔 (新增) */
+        .bullet-hole {
+            position: absolute;
+            background: #1a1a1a;
+            border-radius: 50%;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.1), inset 0 0 5px #000;
+            z-index: 1; /* 位于背景之上，敌人之下 */
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+        }
+
+        /* 敌人容器 */
+        .enemy {
+            position: absolute;
+            width: 80px;
+            height: 120px;
+            z-index: 10;
+            cursor: pointer;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .enemy-inner {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .attack-bar-wrap {
+            position: absolute;
+            top: -20px;
+            left: 0;
+            width: 100%;
+            height: 8px;
+            background: #333;
+            border: 1px solid #000;
+            border-radius: 4px;
+        }
+
+        .attack-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: red;
+            transition: width 0.1s linear;
+        }
+
+        /* 瞄准标记 (X) */
+        .aim-mark {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            z-index: 20;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            animation: markPop 0.2s;
+        }
+        .aim-mark::before, .aim-mark::after {
+            content: '';
+            position: absolute;
+            top: 11px;
+            left: 0;
+            width: 24px;
+            height: 3px;
+            background: #ff0000;
+            box-shadow: 0 0 2px #fff;
+        }
+        .aim-mark::before { transform: rotate(45deg); }
+        .aim-mark::after { transform: rotate(-45deg); }
+
+        /* 牛仔绘制 */
+        .cowboy-head {
+            position: absolute;
+            top: 0;
+            left: 15px; 
+            width: 50px;
+            height: 50px;
+            background: #ffcc80;
+            border-radius: 50%;
+            z-index: 2; 
+        }
+        
+        .cowboy-hat {
+            position: absolute;
+            top: -15px; 
+            left: 5px; 
+            width: 70px;
+            height: 20px;
+            background: #3e2723;
+            border-radius: 50%;
+            z-index: 4; 
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+        }
+        
+        .cowboy-hat::before {
+            content: '';
+            position: absolute;
+            top: -15px;
+            left: 17.5px;
+            width: 35px;
+            height: 25px;
+            background: #3e2723;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .cowboy-body {
+            position: absolute;
+            top: 45px;
+            left: 10px;
+            width: 60px;
+            height: 70px;
+            background: #1565c0; 
+            border-radius: 10px;
+            z-index: 1; 
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+        }
+        
+        .bandana {
+            position: absolute;
+            top: 40px;
+            left: 20px;
+            width: 40px;
+            height: 20px;
+            background: #d32f2f;
+            z-index: 3; 
+            border-radius: 0 0 50% 50%;
+        }
+
+        /* UI 层 */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+            padding: 20px;
+            box-sizing: border-box;
+            transform: none !important; 
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .score-board {
+            color: #fff;
+            font-size: 24px;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .health-bar {
+            font-size: 30px;
+        }
+
+        /* 弹药 UI */
+        #ammo-container {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #ammo-cylinder {
+            display: flex;
+            gap: 5px;
+            padding: 5px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        #ammo-cylinder.infinite-ammo {
+            background: rgba(255, 215, 0, 0.3);
+            box-shadow: 0 0 15px #ffd700;
+        }
+
+        .bullet {
+            width: 12px;
+            height: 30px;
+            background: #555;
+            border: 2px solid #222;
+            border-radius: 4px;
+            transition: all 0.1s;
+        }
+
+        .bullet.active {
+            background: var(--ammo-color);
+            box-shadow: 0 0 5px var(--ammo-color);
+            border-color: #b7950b;
+        }
+        
+        #ammo-cylinder.infinite-ammo .bullet.active {
+            background: #fff;
+            box-shadow: 0 0 10px #fff;
+            border-color: #ffd700;
+        }
+
+        #reload-msg {
+            position: absolute;
+            bottom: 50px;
+            right: 15px;
+            color: #ff3d00;
+            font-weight: bold;
+            font-size: 20px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            text-shadow: 1px 1px 0 #000;
+        }
+        #reload-msg.visible { opacity: 1; }
+
+        /* 死神之眼 按钮 */
+        #deadeye-btn {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 80px;
+            background: #333;
+            border-radius: 50%;
+            border: 4px solid #666;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: transform 0.1s;
+            box-shadow: 0 0 10px #000;
+            overflow: hidden;
+        }
+
+        #deadeye-btn.ready {
+            background: #b71c1c;
+            border-color: #ff5252;
+            animation: pulse 1.5s infinite;
+            box-shadow: 0 0 20px #d32f2f;
+        }
+        
+        #deadeye-btn.active {
+            background: #ffeb3b;
+            border-color: #fff;
+            animation: none;
+        }
+
+        #deadeye-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 0%;
+            background: rgba(255, 0, 0, 0.5);
+            pointer-events: none;
+            transition: height 0.1s;
+            z-index: 0;
+        }
+        
+        #deadeye-btn span { z-index: 1; position: relative; }
+
+        .key-hint {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.5);
+            font-size: 12px;
+            text-shadow: 1px 1px 1px #000;
+        }
+
+        /* 特效层 */
+        #fx-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 90;
+        }
+
+        .particle {
+            position: absolute;
+            background: red;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        /* 状态类 */
+        body.deadeye-mode #game-stage {
+            filter: grayscale(100%) sepia(30%) contrast(1.3) brightness(0.7);
+        }
+        
+        /* Game Over */
+        #game-over {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            color: #d32f2f;
+            z-index: 200;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        h1 { font-size: 50px; margin: 0; text-transform: uppercase; letter-spacing: 5px; }
+        p { color: #fff; font-size: 20px; }
+        button.restart {
+            margin-top: 20px;
+            padding: 15px 40px;
+            font-size: 24px;
+            background: #d32f2f;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        @keyframes popIn { from { transform: scale(0); } to { transform: scale(1); } }
+        @keyframes markPop { 0% { transform: translate(-50%, -50%) scale(2); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+        @keyframes pulse { 0% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.1); } 100% { transform: translateX(-50%) scale(1); } }
+        @keyframes shake { 0% { transform: translate(1px, 1px); } 20% { transform: translate(-3px, 0px); } 40% { transform: translate(1px, -1px); } 60% { transform: translate(-3px, 1px); } 100% { transform: translate(0, 0); } }
+
+        .shake-screen { animation: shake 0.5s; }
+
+        .hit-text {
+            position: absolute;
+            color: yellow;
+            font-weight: bold;
+            font-size: 20px;
+            pointer-events: none;
+            animation: floatUp 1s forwards;
+        }
+        
+        @keyframes floatUp { to { transform: translateY(-50px); opacity: 0; } }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-stage">
+        <div class="saloon-bg"></div>
+        <div class="saloon-door"></div>
+    </div>
+
+    <div id="fx-layer"></div>
+
+    <div id="ui-layer">
+        <div class="top-bar">
+            <div class="score-board">击杀: <span id="score">0</span></div>
+            <div class="health-bar" id="health-display">❤️❤️❤️</div>
+        </div>
+
+        <!-- 弹药 UI -->
+        <div id="ammo-container">
+            <div id="reload-msg">RELOADING...</div>
+            <div id="ammo-cylinder">
+                <div class="bullet active"></div>
+                <div class="bullet active"></div>
+                <div class="bullet active"></div>
+                <div class="bullet active"></div>
+                <div class="bullet active"></div>
+                <div class="bullet active"></div>
+            </div>
+        </div>
+
+        <div id="deadeye-btn" onclick="toggleDeadEye()">
+            <div id="deadeye-fill"></div>
+            <span>💀</span>
+        </div>
+        <div class="key-hint">空格键(Space): 技能 | R键: 换弹</div>
+    </div>
+
+    <div id="game-over">
+        <h1>Wasted</h1>
+        <p>午时已过</p>
+        <p>最终击杀: <span id="final-score">0</span></p>
+        <button class="restart" onclick="restartGame()">再试一次</button>
+    </div>
+
+    <script>
+        const GAME_CONFIG = {
+            spawnRate: 1500, 
+            attackSpeed: 3000, 
+            deadEyeDuration: 2500,
+            deadEyeTimeScale: 0.1, 
+            maxHealth: 3,
+            maxAmmo: 6,
+            reloadTime: 1500
+        };
+
+        let state = {
+            isPlaying: false,
+            score: 0,
+            health: 3,
+            ammo: 6,
+            isReloading: false,
+            deadEyeValue: 0, 
+            isDeadEyeActive: false,
+            lastTime: 0,
+            spawnTimer: 0,
+            timeScale: 1,
+            enemies: [],
+            markedTargets: [],
+            tickInterval: null
+        };
+
+        let enemyIdCounter = 0;
+        const stage = document.getElementById('game-stage');
+        const fxLayer = document.getElementById('fx-layer');
+        const scoreEl = document.getElementById('score');
+        const healthEl = document.getElementById('health-display');
+        const deadEyeBtn = document.getElementById('deadeye-btn');
+        const deadEyeFill = document.getElementById('deadeye-fill');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreEl = document.getElementById('final-score');
+        const reloadMsg = document.getElementById('reload-msg');
+        const ammoCylinder = document.getElementById('ammo-cylinder');
+        const bulletsEls = document.querySelectorAll('.bullet');
+
+        // 音频系统
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'shoot') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.1);
+                gainNode.gain.setValueAtTime(0.5, t);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+                osc.start();
+                osc.stop(t + 0.1);
+            } else if (type === 'empty') { 
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, t);
+                osc.frequency.exponentialRampToValueAtTime(800, t + 0.05);
+                gainNode.gain.setValueAtTime(0.5, t);
+                gainNode.gain.linearRampToValueAtTime(0, t + 0.05);
+                osc.start();
+                osc.stop(t + 0.05);
+            } else if (type === 'reload') { 
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, t);
+                osc.frequency.linearRampToValueAtTime(100, t + 0.2);
+                gainNode.gain.setValueAtTime(0.3, t);
+                gainNode.gain.linearRampToValueAtTime(0, t + 0.2);
+                osc.start();
+                osc.stop(t + 0.2);
+            } else if (type === 'hit') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, t);
+                osc.frequency.linearRampToValueAtTime(50, t + 0.3);
+                gainNode.gain.setValueAtTime(0.5, t);
+                gainNode.gain.linearRampToValueAtTime(0, t + 0.3);
+                osc.start();
+                osc.stop(t + 0.3);
+            } else if (type === 'mark') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, t);
+                osc.frequency.exponentialRampToValueAtTime(400, t + 0.1);
+                gainNode.gain.setValueAtTime(0.3, t);
+                gainNode.gain.linearRampToValueAtTime(0, t + 0.1);
+                osc.start();
+                osc.stop(t + 0.1);
+            } else if (type === 'deadeye_start') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, t);
+                osc.frequency.exponentialRampToValueAtTime(100, t + 1);
+                gainNode.gain.setValueAtTime(0.5, t);
+                gainNode.gain.linearRampToValueAtTime(0, t + 1);
+                osc.start();
+                osc.stop(t + 1);
+            } else if (type === 'tick') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, t); 
+                osc.frequency.exponentialRampToValueAtTime(50, t + 0.05);
+                gainNode.gain.setValueAtTime(0.3, t);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+                osc.start();
+                osc.stop(t + 0.1);
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                toggleDeadEye();
+            } else if (e.code === 'KeyR') {
+                // 手动换弹逻辑：弹药不满 && 没在换弹 && 没开死神之眼
+                if (state.ammo < GAME_CONFIG.maxAmmo && !state.isReloading && !state.isDeadEyeActive && state.isPlaying) {
+                    startReload();
+                }
+            }
+        });
+
+        // 鼠标/触摸点击背景（空枪 & 弹孔）
+        stage.addEventListener('mousedown', (e) => {
+            if (e.target === stage || e.target.classList.contains('saloon-bg') || e.target.classList.contains('saloon-door')) {
+                // 传入点击坐标
+                tryShoot(false, e.clientX, e.clientY);
+            }
+        });
+
+        function gameLoop(timestamp) {
+            if (!state.isPlaying) return;
+
+            const dtRaw = timestamp - state.lastTime;
+            state.lastTime = timestamp;
+            const dt = dtRaw * state.timeScale;
+
+            state.spawnTimer -= dtRaw; 
+            if (state.isDeadEyeActive) {
+            } else if (state.spawnTimer <= 0) {
+                spawnEnemy();
+                let currentRate = Math.max(500, GAME_CONFIG.spawnRate - state.score * 20);
+                state.spawnTimer = currentRate; 
+            }
+
+            updateEnemies(dt);
+
+            if (state.isDeadEyeActive) {
+                state.deadEyeValue -= (dtRaw / GAME_CONFIG.deadEyeDuration) * 100; 
+                if (state.deadEyeValue <= 0) {
+                    deactivateDeadEye();
+                }
+                updateDeadEyeUI();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- 射击系统 ---
+
+        function tryShoot(isHit = false, clickX = 0, clickY = 0) {
+            if (!state.isPlaying) return false;
+
+            // 死神之眼不消耗弹药
+            if (state.isDeadEyeActive) return false;
+
+            if (state.isReloading) {
+                playSound('empty');
+                return false;
+            }
+            if (state.ammo <= 0) {
+                playSound('empty');
+                startReload();
+                return false;
+            }
+
+            state.ammo--;
+            updateAmmoUI();
+            
+            if (!isHit) {
+                playSound('shoot');
+                // 没打中人，生成弹孔
+                spawnBulletHole(clickX, clickY);
+            }
+
+            if (state.ammo <= 0) {
+                startReload();
+            }
+            return true;
+        }
+
+        function startReload() {
+            if (state.isReloading) return;
+            state.isReloading = true;
+            reloadMsg.classList.add('visible');
+            playSound('reload');
+
+            setTimeout(() => {
+                state.ammo = GAME_CONFIG.maxAmmo;
+                state.isReloading = false;
+                reloadMsg.classList.remove('visible');
+                updateAmmoUI();
+                playSound('reload'); 
+            }, GAME_CONFIG.reloadTime);
+        }
+
+        function updateAmmoUI() {
+            bulletsEls.forEach((el, index) => {
+                if (index < state.ammo) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+        }
+
+        // 生成弹孔特效
+        function spawnBulletHole(x, y) {
+            const hole = document.createElement('div');
+            hole.className = 'bullet-hole';
+            // 随机一点大小变化
+            const size = 10 + Math.random() * 6;
+            hole.style.width = `${size}px`;
+            hole.style.height = `${size}px`;
+            hole.style.left = `${x}px`;
+            hole.style.top = `${y}px`;
+            // 随机旋转
+            hole.style.transform = `translate(-50%, -50%) rotate(${Math.random() * 360}deg)`;
+            stage.appendChild(hole);
+
+            // 3秒后淡出移除
+            setTimeout(() => {
+                hole.style.transition = 'opacity 1s';
+                hole.style.opacity = 0;
+                setTimeout(() => {
+                    if(hole.parentNode) hole.parentNode.removeChild(hole);
+                }, 1000);
+            }, 2500);
+        }
+
+        // --- 敌人逻辑 ---
+
+        function spawnEnemy() {
+            const id = `enemy-${enemyIdCounter++}`;
+            const el = document.createElement('div');
+            el.className = 'enemy';
+            el.id = id;
+            
+            const x = Math.random() * (window.innerWidth - 100) + 10;
+            const y = Math.random() * (window.innerHeight - 200) + 100;
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+
+            el.innerHTML = `
+                <div class="attack-bar-wrap"><div class="attack-bar-fill"></div></div>
+                <div class="enemy-inner">
+                    <div class="cowboy-hat"></div>
+                    <div class="cowboy-head" onmousedown="onEnemyInteraction('${id}', true, event)" ontouchstart="onEnemyInteraction('${id}', true, event)"></div>
+                    <div class="bandana"></div>
+                    <div class="cowboy-body" onmousedown="onEnemyInteraction('${id}', false, event)" ontouchstart="onEnemyInteraction('${id}', false, event)"></div>
+                </div>
+            `;
+            stage.appendChild(el);
+
+            state.enemies.push({
+                id: id,
+                el: el,
+                attackTimer: 0,
+                maxAttackTime: Math.max(1000, GAME_CONFIG.attackSpeed - state.score * 50)
+            });
+        }
+
+        function updateEnemies(dt) {
+            for (let i = state.enemies.length - 1; i >= 0; i--) {
+                let e = state.enemies[i];
+                
+                const isMarked = state.markedTargets.some(t => t.id === e.id);
+                if (!isMarked) {
+                    e.attackTimer += dt;
+                }
+
+                const percent = Math.min(100, (e.attackTimer / e.maxAttackTime) * 100);
+                const bar = e.el.querySelector('.attack-bar-fill');
+                if (bar) bar.style.width = `${percent}%`;
+
+                if (e.attackTimer >= e.maxAttackTime) {
+                    playerTakeDamage();
+                    removeEnemy(i);
+                }
+            }
+        }
+
+        function removeEnemy(index) {
+            const e = state.enemies[index];
+            if (e && e.el && e.el.parentNode) {
+                e.el.parentNode.removeChild(e.el);
+            }
+            state.enemies.splice(index, 1);
+        }
+
+        function onEnemyInteraction(id, isHeadshot, event) {
+            if (!state.isPlaying) return;
+            event.stopPropagation(); 
+            event.preventDefault();
+
+            const enemyObj = state.enemies.find(e => e.id === id);
+            if (!enemyObj) return;
+
+            const rect = event.target.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+
+            if (state.isDeadEyeActive) {
+                // 死神之眼模式 - 无限制标记
+                if (state.markedTargets.some(t => t.id === id)) return;
+
+                const mark = document.createElement('div');
+                mark.className = 'aim-mark';
+                mark.style.left = '50%'; 
+                mark.style.top = isHeadshot ? '20px' : '60px'; 
+                enemyObj.el.appendChild(mark);
+
+                state.markedTargets.push({
+                    id: id,
+                    isHeadshot: isHeadshot,
+                    x: x,
+                    y: y
+                });
+                playSound('mark'); 
+
+            } else {
+                if (tryShoot(true)) {
+                    performKill(id, isHeadshot, x, y);
+                }
+            }
+        }
+
+        function performKill(id, isHeadshot, fxX, fxY) {
+            const index = state.enemies.findIndex(e => e.id === id);
+            if (index === -1) return;
+
+            playSound('shoot');
+            spawnBlood(fxX, fxY, isHeadshot);
+
+            if (isHeadshot) {
+                state.score += 2;
+                chargeDeadEye(20);
+                showFloatingText(fxX, fxY, "爆头!");
+            } else {
+                state.score += 1;
+                chargeDeadEye(5);
+            }
+            
+            updateScore();
+            removeEnemy(index);
+        }
+
+        function playerTakeDamage() {
+            playSound('hit');
+            state.health--;
+            updateHealth();
+            stage.classList.add('shake-screen');
+            setTimeout(() => stage.classList.remove('shake-screen'), 500);
+            if (state.health <= 0) gameOver();
+        }
+
+        function chargeDeadEye(amount) {
+            if (state.isDeadEyeActive) return;
+            state.deadEyeValue = Math.min(100, state.deadEyeValue + amount);
+            updateDeadEyeUI();
+        }
+
+        function updateDeadEyeUI() {
+            deadEyeFill.style.height = `${state.deadEyeValue}%`;
+            if (state.deadEyeValue >= 100 && !state.isDeadEyeActive) {
+                deadEyeBtn.classList.add('ready');
+            } else {
+                deadEyeBtn.classList.remove('ready');
+            }
+        }
+
+        function toggleDeadEye() {
+            if (!state.isPlaying) return;
+
+            if (state.isDeadEyeActive) {
+                deactivateDeadEye();
+            } else {
+                if (state.deadEyeValue >= 100) {
+                    activateDeadEye();
+                } 
+            }
+        }
+
+        function activateDeadEye() {
+            state.isDeadEyeActive = true;
+            state.timeScale = GAME_CONFIG.deadEyeTimeScale;
+            state.markedTargets = []; 
+            
+            // 立即填满弹药
+            state.ammo = GAME_CONFIG.maxAmmo;
+            state.isReloading = false;
+            reloadMsg.classList.remove('visible');
+            updateAmmoUI();
+
+            // UI 效果
+            ammoCylinder.classList.add('infinite-ammo');
+            document.body.classList.add('deadeye-mode');
+            deadEyeBtn.classList.add('active');
+            playSound('deadeye_start');
+
+            if (state.tickInterval) clearInterval(state.tickInterval);
+            state.tickInterval = setInterval(() => {
+                playSound('tick');
+            }, 1000); 
+        }
+
+        function deactivateDeadEye() {
+            state.isDeadEyeActive = false;
+            state.timeScale = 1.0;
+            state.deadEyeValue = 0;
+            
+            // 移除 UI 效果
+            ammoCylinder.classList.remove('infinite-ammo');
+            if (state.tickInterval) clearInterval(state.tickInterval);
+            
+            document.body.classList.remove('deadeye-mode');
+            deadEyeBtn.classList.remove('active');
+            updateDeadEyeUI();
+
+            executeMarks();
+        }
+
+        function executeMarks() {
+            if (state.markedTargets.length === 0) return;
+
+            state.markedTargets.forEach((target, i) => {
+                setTimeout(() => {
+                    performKill(target.id, target.isHeadshot, target.x, target.y);
+                }, i * 150); 
+            });
+
+            state.markedTargets = [];
+        }
+
+        function spawnBlood(x, y, huge) {
+            const count = huge ? 10 : 5;
+            for (let i = 0; i < count; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                const size = Math.random() * 5 + 3;
+                p.style.width = `${size}px`;
+                p.style.height = `${size}px`;
+                p.style.left = `${x}px`;
+                p.style.top = `${y}px`;
+                
+                const angle = Math.random() * Math.PI * 2;
+                const velocity = Math.random() * 50 + 20;
+                const vx = Math.cos(angle) * velocity;
+                const vy = Math.sin(angle) * velocity;
+
+                fxLayer.appendChild(p);
+
+                let t = 0;
+                const anim = setInterval(() => {
+                    t += 0.05;
+                    const curX = parseFloat(p.style.left);
+                    const curY = parseFloat(p.style.top);
+                    p.style.left = `${curX + vx * 0.05}px`;
+                    p.style.top = `${curY + vy * 0.05 + 9.8 * t * t}px`;
+                    p.style.opacity = 1 - t * 2;
+
+                    if (t > 0.5) {
+                        clearInterval(anim);
+                        if (p.parentNode) p.parentNode.removeChild(p);
+                    }
+                }, 16);
+            }
+        }
+
+        function showFloatingText(x, y, text) {
+            const el = document.createElement('div');
+            el.className = 'hit-text';
+            el.innerText = text;
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            fxLayer.appendChild(el);
+            setTimeout(() => { if(el.parentNode) el.parentNode.removeChild(el); }, 1000);
+        }
+
+        function updateScore() {
+            scoreEl.innerText = state.score;
+        }
+
+        function updateHealth() {
+            let h = '';
+            for (let i = 0; i < state.health; i++) h += '❤️';
+            healthEl.innerText = h;
+        }
+
+        function startGame() {
+            state = {
+                isPlaying: true,
+                score: 0,
+                health: GAME_CONFIG.maxHealth,
+                ammo: GAME_CONFIG.maxAmmo,
+                isReloading: false,
+                deadEyeValue: 0,
+                isDeadEyeActive: false,
+                lastTime: performance.now(),
+                spawnTimer: 0,
+                timeScale: 1,
+                enemies: [],
+                markedTargets: [],
+                tickInterval: null
+            };
+            stage.innerHTML = '<div class="saloon-bg"></div><div class="saloon-door"></div>'; 
+            stage.classList.remove('shake-screen');
+            fxLayer.innerHTML = '';
+            gameOverScreen.style.display = 'none';
+            reloadMsg.classList.remove('visible');
+            ammoCylinder.classList.remove('infinite-ammo');
+            
+            updateScore();
+            updateHealth();
+            updateDeadEyeUI();
+            updateAmmoUI();
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameOver() {
+            state.isPlaying = false;
+            if (state.tickInterval) clearInterval(state.tickInterval);
+            state.isDeadEyeActive = false;
+            document.body.classList.remove('deadeye-mode');
+            finalScoreEl.innerText = state.score;
+            gameOverScreen.style.display = 'flex';
+        }
+
+        function restartGame() {
+            startGame();
+        }
+
+        window.onload = () => {
+            startGame();
+        };
+
+    </script>
+</body>
+</html>
